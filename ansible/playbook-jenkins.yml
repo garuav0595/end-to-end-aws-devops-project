@@ -1,0 +1,42 @@
+---
+- name: Setup Jenkins CI Server
+  hosts: all
+  become: yes
+  tasks:
+    - name: Update apt repositories and install dependencies
+      apt:
+        name:
+          - openjdk-17-jdk
+          - git
+          - curl
+          - apt-transport-https
+          - ca-certificates
+          - gnupg
+        state: present
+        update_cache: yes
+
+    - name: Install Docker Engine
+      shell: |
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg --yes
+        echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu jammy stable" | tee /etc/apt/sources.list.d/docker.list
+        apt-get update && apt-get install -y docker-ce docker-ce-cli containerd.io
+
+    - name: Install Jenkins
+      shell: |
+        curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key | tee /usr/share/keyrings/jenkins-keyring.asc > /dev/null
+        echo "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/" | tee /etc/apt/sources.list.d/jenkins.list
+        apt-get update && apt-get install -y jenkins
+
+    - name: Add jenkins user to docker group
+      user:
+        name: jenkins
+        groups: docker
+        append: yes
+
+    - name: Start Docker and Jenkins services
+      service:
+        name: "{{ item }}"
+        state: started
+        enabled: yes
+      loop: [docker, jenkins]
