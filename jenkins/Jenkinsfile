@@ -1,0 +1,47 @@
+pipeline {
+    agent any
+    environment {
+        AWS_REGION      = 'us-east-1'
+        AWS_ACCOUNT_ID  = '123456789012'
+        ECR_REPO_NAME   = 'cloudnative-backend'
+        IMAGE_TAG       = "${BUILD_NUMBER}"
+        ECR_URI         = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}"
+    }
+    stages {
+        stage('Checkout Code') {
+            steps {
+                git branch: 'main', url: 'https://github.com/myorg/cloudnative-backend.git'
+            }
+        }
+        stage('Unit Tests & Lint') {
+            steps {
+                sh 'npm test -- --coverage'
+            }
+        }
+        stage('Docker Build & Trivy Scan') {
+            steps {
+                sh "docker build -t ${ECR_URI}:${IMAGE_TAG} -t ${ECR_URI}:latest ."
+                sh "trivy image --exit-code 1 --severity CRITICAL ${ECR_URI}:${IMAGE_TAG}"
+            }
+        }
+        stage('Push to Amazon ECR') {
+            steps {
+                sh "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+                sh "docker push ${ECR_URI}:${IMAGE_TAG}"
+                sh "docker push ${ECR_URI}:latest"
+            }
+        }
+        stage('Update GitOps Repo') {
+            steps {
+                sh '''
+                    git clone git@github.com:myorg/gitops-infra-repo.git gitops-repo
+                    cd gitops-repo/apps/backend
+                    sed -i "s|image:.*|image: ${ECR_URI}:${IMAGE_TAG}|g" deployment.yaml
+                    git config user.name "Jenkins CI" && git config user.email "jenkins@company.com"
+                    git commit -am "Auto-bump image tag to ${IMAGE_TAG}"
+                    git push origin main
+                '''
+            }
+        }
+    }
+}
