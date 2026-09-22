@@ -20,6 +20,12 @@ Developer → GitHub → Jenkins CI (test, Trivy scan, build) → Amazon ECR
                      Route53 + CloudFront + WAF          Multi-AZ RDS PostgreSQL + S3         Prometheus/Grafana + ELK
 ```
 
+## Pipeline flow
+
+![Pipeline flow animation](docs/pipeline-flow.gif)
+
+An [MP4 version](docs/pipeline-flow.mp4) of this flow diagram is also included in `docs/`.
+
 ## Tech stack
 
 | Layer | Tools |
